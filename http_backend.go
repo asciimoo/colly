@@ -18,6 +18,7 @@ import (
 	"crypto/sha1"
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -170,7 +171,12 @@ func (h *httpBackend) Cache(request *http.Request, bodySize int, checkHeadersFun
 func (h *httpBackend) Do(request *http.Request, bodySize int, checkHeadersFunc checkHeadersFunc) (*Response, error) {
 	r := h.GetMatchingRule(request.URL.Host)
 	if r != nil {
-		r.waitChan <- true
+		select {
+		case r.waitChan <- true:
+		case <-request.Context().Done():
+			return nil, errors.New("context canceled; early return")
+		}
+
 		defer func(r *LimitRule) {
 			randomDelay := time.Duration(0)
 			if r.RandomDelay != 0 {
