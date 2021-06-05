@@ -167,6 +167,36 @@ func newTestServer() *httptest.Server {
 		`))
 	})
 
+	mux.HandleFunc("/tabs_and_newlines", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<!DOCTYPE html>
+<html>
+<head>
+<title>Test Page</title>
+<base href="/foo	bar/" />
+</head>
+<body>
+<a href="x
+y">link</a>
+</body>
+</html>
+		`))
+	})
+
+	mux.HandleFunc("/foobar/xy", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<!DOCTYPE html>
+<html>
+<head>
+<title>Test Page</title>
+</head>
+<body>
+<p>hello</p>
+</body>
+</html>
+		`))
+	})
+
 	mux.HandleFunc("/large_binary", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		ww := bufio.NewWriter(w)
@@ -850,6 +880,34 @@ func TestBaseTagRelative(t *testing.T) {
 		}
 	})
 	c2.Visit(ts.URL + "/base_relative")
+}
+
+func TestTabsAndNewlines(t *testing.T) {
+	// this test might look odd, but see step 3 of
+	// https://url.spec.whatwg.org/#concept-basic-url-parser
+
+	ts := newTestServer()
+	defer ts.Close()
+
+	visited := map[string]struct{}{}
+	expected := map[string]struct{}{
+		"/tabs_and_newlines": {},
+		"/foobar/xy":         {},
+	}
+
+	c := NewCollector()
+	c.OnResponse(func(res *Response) {
+		visited[res.Request.URL.EscapedPath()] = struct{}{}
+	})
+	c.OnHTML("a[href]", func(e *HTMLElement) {
+		e.Request.Visit(e.Attr("href"))
+	})
+
+	c.Visit(ts.URL + "/tabs_and_newlines")
+
+	if !reflect.DeepEqual(visited, expected) {
+		t.Errorf("visited=%v expected=%v", visited, expected)
+	}
 }
 
 func TestCollectorCookies(t *testing.T) {

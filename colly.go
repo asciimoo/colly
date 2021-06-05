@@ -549,7 +549,7 @@ func (c *Collector) UnmarshalRequest(r []byte) (*Request, error) {
 }
 
 func (c *Collector) scrape(u, method string, depth int, requestData io.Reader, ctx *Context, hdr http.Header, checkRevisit bool) error {
-	parsedURL, err := url.Parse(u)
+	parsedURL, err := url.Parse(RemoveAsciiTabAndNewlines(u))
 	if err != nil {
 		return err
 	}
@@ -1077,7 +1077,7 @@ func (c *Collector) handleOnHTML(resp *Response) error {
 		return err
 	}
 	if href, found := doc.Find("base[href]").Attr("href"); found {
-		baseURL, err := resp.Request.URL.Parse(href)
+		baseURL, err := resp.Request.URL.Parse(RemoveAsciiTabAndNewlines(href))
 		if err == nil {
 			resp.Request.baseURL = baseURL
 		}
@@ -1119,7 +1119,7 @@ func (c *Collector) handleOnXML(resp *Response) error {
 		if e := htmlquery.FindOne(doc, "//base"); e != nil {
 			for _, a := range e.Attr {
 				if a.Key == "href" {
-					baseURL, err := resp.Request.URL.Parse(a.Val)
+					baseURL, err := resp.Request.URL.Parse(RemoveAsciiTabAndNewlines(a.Val))
 					if err == nil {
 						resp.Request.baseURL = baseURL
 					}
@@ -1454,4 +1454,22 @@ func streamToByte(r io.Reader) []byte {
 	}
 
 	return buf.Bytes()
+}
+
+// RemoveAsciiTabAndNewlines removes the corresponding characters
+// according to step 3 of https://url.spec.whatwg.org/#concept-basic-url-parser.
+// Although step 2 says "validation error", this is not a hard error,
+// and browsers do in fact just silently remove those.
+//
+// This function is mostly used internally, but it's exported for extra
+// convenience.
+func RemoveAsciiTabAndNewlines(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '\t', '\n', '\r':
+			return -1
+		default:
+			return r
+		}
+	}, s)
 }

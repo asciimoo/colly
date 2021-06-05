@@ -75,7 +75,7 @@ func (q *Queue) IsEmpty() bool {
 
 // AddURL adds a new URL to the queue
 func (q *Queue) AddURL(URL string) error {
-	u, err := url.Parse(URL)
+	u, err := url.Parse(colly.RemoveAsciiTabAndNewlines(URL))
 	if err != nil {
 		return err
 	}

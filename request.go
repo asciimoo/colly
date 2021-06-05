@@ -64,7 +64,7 @@ type serializableRequest struct {
 
 // New creates a new request with the context of the original request
 func (r *Request) New(method, URL string, body io.Reader) (*Request, error) {
-	u, err := url.Parse(URL)
+	u, err := url.Parse(RemoveAsciiTabAndNewlines(URL))
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +88,7 @@ func (r *Request) Abort() {
 // AbsoluteURL returns empty string if the URL chunk is a fragment or
 // could not be parsed
 func (r *Request) AbsoluteURL(u string) string {
+	u = RemoveAsciiTabAndNewlines(u)
 	if strings.HasPrefix(u, "#") {
 		return ""
 	}
