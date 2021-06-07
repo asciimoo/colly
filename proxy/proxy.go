@@ -16,6 +16,7 @@ package proxy
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/url"
 	"sync/atomic"
@@ -28,6 +29,12 @@ type roundRobinSwitcher struct {
 	index     uint32
 }
 
+type authenticatedRoundRobinSwitcher struct {
+	roundRobinSwitcher colly.ProxyFunc
+	username           string
+	password           string
+}
+
 func (r *roundRobinSwitcher) GetProxy(pr *http.Request) (*url.URL, error) {
 	index := atomic.AddUint32(&r.index, 1) - 1
 	u := r.proxyURLs[index%uint32(len(r.proxyURLs))]
@@ -35,6 +42,18 @@ func (r *roundRobinSwitcher) GetProxy(pr *http.Request) (*url.URL, error) {
 	ctx := context.WithValue(pr.Context(), colly.ProxyURLKey, u.String())
 	*pr = *pr.WithContext(ctx)
 	return u, nil
+}
+
+func (r *authenticatedRoundRobinSwitcher) GetAuthenticatedProxy(request *http.Request) (*url.URL, error) {
+	auth := r.username + ":" + r.password
+	basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+	request.Header.Add("Proxy-Authorization", basicAuth)
+	request.Header.Add("Proxy-Connection", "Keep-Alive")
+	url, err := r.roundRobinSwitcher(request)
+	if err != nil {
+		return nil, err
+	}
+	return url, nil
 }
 
 // RoundRobinProxySwitcher creates a proxy switcher function which rotates
@@ -55,4 +74,17 @@ func RoundRobinProxySwitcher(ProxyURLs ...string) (colly.ProxyFunc, error) {
 		urls[i] = parsedU
 	}
 	return (&roundRobinSwitcher{urls, 0}).GetProxy, nil
+}
+
+// AuthenticatedRoundRobinProxySwitcher decorates RoundRobinProxySwitcher and sets proxy credentials.
+// See RoundRobinProxySwitcher for more details on rotating proxies.
+// This method sets correct "Proxy-Connection" and "Proxy-Authorization" headers.
+// "Proxy-Authorization" contains the credentials (username, password) to authenticate
+// a user agent to a proxy server.
+func AuthenticatedRoundRobinProxySwitcher(username string, password string, ProxyURLs ...string) (func(*http.Request) (*url.URL, error), error) {
+	roundRobinSwitcher, err := RoundRobinProxySwitcher(ProxyURLs...)
+	if err != nil {
+		return nil, err
+	}
+	return (&authenticatedRoundRobinSwitcher{roundRobinSwitcher, username, password}).GetAuthenticatedProxy, nil
 }
