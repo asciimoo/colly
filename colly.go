@@ -37,6 +37,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/antchfx/htmlquery"
@@ -171,6 +172,14 @@ type cookieJarSerializer struct {
 }
 
 var collectorCounter uint32
+
+// used to cleanup xml files before unmarshalling
+var printOnly = func(r rune) rune {
+	if unicode.IsPrint(r) {
+		return r
+	}
+	return -1
+}
 
 // The key type is unexported to prevent collisions with context keys defined in
 // other packages.
@@ -1141,7 +1150,8 @@ func (c *Collector) handleOnXML(resp *Response) error {
 			}
 		}
 	} else if strings.Contains(contentType, "xml") || isXMLFile {
-		doc, err := xmlquery.Parse(bytes.NewBuffer(resp.Body))
+		xmlData := []byte(strings.Map(printOnly, string(resp.Body)))
+		doc, err := xmlquery.Parse(bytes.NewBuffer(xmlData))
 		if err != nil {
 			return err
 		}
