@@ -767,6 +767,11 @@ func (c *Collector) isDomainAllowed(domain string) bool {
 		return true
 	}
 	for _, d2 := range c.AllowedDomains {
+		if strings.Contains(domain, d2) {
+			return true
+		}
+	}
+	for _, d2 := range c.AllowedDomains {
 		if d2 == domain {
 			return true
 		}
