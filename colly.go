@@ -825,6 +825,18 @@ func (c *Collector) String() string {
 	)
 }
 
+//return Statistics in map
+func (c *Collector) Statistics() map[string]int {
+	return map[string]int{
+		"RequestCount": int(c.requestCount),
+		"ResponseCount": int(c.responseCount),
+		"requestCallbacks": len(c.requestCallbacks),
+		"htmlCallbacks": len(c.htmlCallbacks),
+		"responseCallbacks": len(c.responseCallbacks),
+		"errorCallbacks": len(c.errorCallbacks),
+	}
+}
+
 // Wait returns when the collector jobs are finished
 func (c *Collector) Wait() {
 	c.wg.Wait()
