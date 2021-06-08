@@ -774,10 +774,23 @@ func (c *Collector) isDomainAllowed(domain string) bool {
 	return false
 }
 
-func (c *Collector) checkRobots(u *url.URL) error {
+func (c *Collector) robotsMapGet(host string) (robot *robotstxt.RobotsData, ok bool) {
 	c.lock.RLock()
-	robot, ok := c.robotsMap[u.Host]
-	c.lock.RUnlock()
+	defer c.lock.RUnlock()
+
+	robot, ok = c.robotsMap[host]
+	return
+}
+
+func (c *Collector) robotsMapSet(host string, robot *robotstxt.RobotsData) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.robotsMap[host] = robot
+}
+
+func (c *Collector) checkRobots(u *url.URL) error {
+	robot, ok := c.robotsMapGet(u.Host)
 
 	if !ok {
 		// no robots file cached
@@ -791,9 +804,7 @@ func (c *Collector) checkRobots(u *url.URL) error {
 		if err != nil {
 			return err
 		}
-		c.lock.Lock()
-		c.robotsMap[u.Host] = robot
-		c.lock.Unlock()
+		c.robotsMapSet(u.Host, robot)
 	}
 
 	uaGroup := robot.FindGroup(c.UserAgent)
@@ -834,11 +845,12 @@ func (c *Collector) Wait() {
 // request made by the Collector
 func (c *Collector) OnRequest(f RequestCallback) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if c.requestCallbacks == nil {
 		c.requestCallbacks = make([]RequestCallback, 0, 4)
 	}
 	c.requestCallbacks = append(c.requestCallbacks, f)
-	c.lock.Unlock()
 }
 
 // OnResponseHeaders registers a function. Function will be executed on every response
@@ -861,11 +873,12 @@ func (c *Collector) OnResponseHeaders(f ResponseHeadersCallback) {
 // OnResponse registers a function. Function will be executed on every response
 func (c *Collector) OnResponse(f ResponseCallback) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if c.responseCallbacks == nil {
 		c.responseCallbacks = make([]ResponseCallback, 0, 4)
 	}
 	c.responseCallbacks = append(c.responseCallbacks, f)
-	c.lock.Unlock()
 }
 
 // OnHTML registers a function. Function will be executed on every HTML
@@ -873,6 +886,8 @@ func (c *Collector) OnResponse(f ResponseCallback) {
 // GoQuery Selector is a selector used by https://github.com/PuerkitoBio/goquery
 func (c *Collector) OnHTML(goquerySelector string, f HTMLCallback) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if c.htmlCallbacks == nil {
 		c.htmlCallbacks = make([]*htmlCallbackContainer, 0, 4)
 	}
@@ -880,7 +895,6 @@ func (c *Collector) OnHTML(goquerySelector string, f HTMLCallback) {
 		Selector: goquerySelector,
 		Function: f,
 	})
-	c.lock.Unlock()
 }
 
 // OnXML registers a function. Function will be executed on every XML
@@ -888,6 +902,8 @@ func (c *Collector) OnHTML(goquerySelector string, f HTMLCallback) {
 // xpath Query is used by https://github.com/antchfx/xmlquery
 func (c *Collector) OnXML(xpathQuery string, f XMLCallback) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if c.xmlCallbacks == nil {
 		c.xmlCallbacks = make([]*xmlCallbackContainer, 0, 4)
 	}
@@ -895,12 +911,13 @@ func (c *Collector) OnXML(xpathQuery string, f XMLCallback) {
 		Query:    xpathQuery,
 		Function: f,
 	})
-	c.lock.Unlock()
 }
 
 // OnHTMLDetach deregister a function. Function will not be execute after detached
 func (c *Collector) OnHTMLDetach(goquerySelector string) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	deleteIdx := -1
 	for i, cc := range c.htmlCallbacks {
 		if cc.Selector == goquerySelector {
@@ -911,12 +928,13 @@ func (c *Collector) OnHTMLDetach(goquerySelector string) {
 	if deleteIdx != -1 {
 		c.htmlCallbacks = append(c.htmlCallbacks[:deleteIdx], c.htmlCallbacks[deleteIdx+1:]...)
 	}
-	c.lock.Unlock()
 }
 
 // OnXMLDetach deregister a function. Function will not be execute after detached
 func (c *Collector) OnXMLDetach(xpathQuery string) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	deleteIdx := -1
 	for i, cc := range c.xmlCallbacks {
 		if cc.Query == xpathQuery {
@@ -927,29 +945,30 @@ func (c *Collector) OnXMLDetach(xpathQuery string) {
 	if deleteIdx != -1 {
 		c.xmlCallbacks = append(c.xmlCallbacks[:deleteIdx], c.xmlCallbacks[deleteIdx+1:]...)
 	}
-	c.lock.Unlock()
 }
 
 // OnError registers a function. Function will be executed if an error
 // occurs during the HTTP request.
 func (c *Collector) OnError(f ErrorCallback) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if c.errorCallbacks == nil {
 		c.errorCallbacks = make([]ErrorCallback, 0, 4)
 	}
 	c.errorCallbacks = append(c.errorCallbacks, f)
-	c.lock.Unlock()
 }
 
 // OnScraped registers a function. Function will be executed after
 // OnHTML, as a final part of the scraping.
 func (c *Collector) OnScraped(f ScrapedCallback) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if c.scrapedCallbacks == nil {
 		c.scrapedCallbacks = make([]ScrapedCallback, 0, 4)
 	}
 	c.scrapedCallbacks = append(c.scrapedCallbacks, f)
-	c.lock.Unlock()
 }
 
 // SetClient will override the previously set http.Client
