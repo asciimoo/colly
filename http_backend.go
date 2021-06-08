@@ -209,7 +209,10 @@ func (h *httpBackend) Do(request *http.Request, bodySize int, checkHeadersFunc c
 	}
 	body, err := ioutil.ReadAll(bodyReader)
 	if err != nil {
-		return nil, err
+		// Make allowances for broken servers that don't sent a content length.
+		if err != io.ErrUnexpectedEOF || res.ContentLength != -1 {
+			return nil, err
+		}
 	}
 	return &Response{
 		StatusCode: res.StatusCode,
